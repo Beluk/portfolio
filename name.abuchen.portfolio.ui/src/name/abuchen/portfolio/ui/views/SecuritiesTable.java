@@ -1,52 +1,21 @@
 package name.abuchen.portfolio.ui.views;
 
 import java.text.MessageFormat;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
-
-import name.abuchen.portfolio.model.AccountTransaction;
-import name.abuchen.portfolio.model.Client;
-import name.abuchen.portfolio.model.LatestSecurityPrice;
-import name.abuchen.portfolio.model.PortfolioTransaction;
-import name.abuchen.portfolio.model.Security;
-import name.abuchen.portfolio.model.SecurityPrice;
-import name.abuchen.portfolio.model.Taxonomy;
-import name.abuchen.portfolio.model.Values;
-import name.abuchen.portfolio.model.Watchlist;
-import name.abuchen.portfolio.ui.AbstractFinanceView;
-import name.abuchen.portfolio.ui.Messages;
-import name.abuchen.portfolio.ui.PortfolioPlugin;
-import name.abuchen.portfolio.ui.UpdateQuotesJob;
-import name.abuchen.portfolio.ui.dialogs.BuySellSecurityDialog;
-import name.abuchen.portfolio.ui.dialogs.SecurityAccountTransactionDialog;
-import name.abuchen.portfolio.ui.dnd.SecurityDragListener;
-import name.abuchen.portfolio.ui.dnd.SecurityTransfer;
-import name.abuchen.portfolio.ui.util.BookmarkMenu;
-import name.abuchen.portfolio.ui.util.Column;
-import name.abuchen.portfolio.ui.util.ColumnEditingSupport;
-import name.abuchen.portfolio.ui.util.ColumnEditingSupport.ModificationListener;
-import name.abuchen.portfolio.ui.util.ColumnViewerSorter;
-import name.abuchen.portfolio.ui.util.ShowHideColumnHelper;
-import name.abuchen.portfolio.ui.util.SimpleListContentProvider;
-import name.abuchen.portfolio.ui.util.StringEditingSupport;
-import name.abuchen.portfolio.ui.util.ViewerHelper;
-import name.abuchen.portfolio.ui.views.columns.AttributeColumn;
-import name.abuchen.portfolio.ui.views.columns.IsinColumn;
-import name.abuchen.portfolio.ui.views.columns.NoteColumn;
-import name.abuchen.portfolio.ui.views.columns.TaxonomyColumn;
-import name.abuchen.portfolio.ui.wizards.security.EditSecurityDialog;
-import name.abuchen.portfolio.ui.wizards.splits.StockSplitWizard;
-import name.abuchen.portfolio.util.Dates;
+import java.util.function.BiFunction;
 
 import org.eclipse.jface.action.Action;
-import org.eclipse.jface.action.IMenuListener;
 import org.eclipse.jface.action.IMenuManager;
 import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.action.Separator;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.layout.TableColumnLayout;
+import org.eclipse.jface.resource.JFaceResources;
+import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -56,14 +25,53 @@ import org.eclipse.jface.wizard.WizardDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.dnd.DND;
 import org.eclipse.swt.dnd.Transfer;
-import org.eclipse.swt.events.DisposeEvent;
-import org.eclipse.swt.events.DisposeListener;
+import org.eclipse.swt.events.KeyAdapter;
+import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.Shell;
+
+import name.abuchen.portfolio.model.AccountTransaction;
+import name.abuchen.portfolio.model.Client;
+import name.abuchen.portfolio.model.LatestSecurityPrice;
+import name.abuchen.portfolio.model.PortfolioTransaction;
+import name.abuchen.portfolio.model.Security;
+import name.abuchen.portfolio.model.SecurityPrice;
+import name.abuchen.portfolio.model.Taxonomy;
+import name.abuchen.portfolio.model.Watchlist;
+import name.abuchen.portfolio.money.Values;
+import name.abuchen.portfolio.snapshot.ReportingPeriod;
+import name.abuchen.portfolio.ui.AbstractFinanceView;
+import name.abuchen.portfolio.ui.Images;
+import name.abuchen.portfolio.ui.Messages;
+import name.abuchen.portfolio.ui.UpdateQuotesJob;
+import name.abuchen.portfolio.ui.dialogs.transactions.AccountTransactionDialog;
+import name.abuchen.portfolio.ui.dialogs.transactions.OpenDialogAction;
+import name.abuchen.portfolio.ui.dialogs.transactions.SecurityTransactionDialog;
+import name.abuchen.portfolio.ui.dnd.SecurityDragListener;
+import name.abuchen.portfolio.ui.dnd.SecurityTransfer;
+import name.abuchen.portfolio.ui.util.BookmarkMenu;
+import name.abuchen.portfolio.ui.util.Colors;
+import name.abuchen.portfolio.ui.util.viewers.Column;
+import name.abuchen.portfolio.ui.util.viewers.ColumnEditingSupport;
+import name.abuchen.portfolio.ui.util.viewers.ColumnEditingSupport.ModificationListener;
+import name.abuchen.portfolio.ui.util.viewers.ColumnViewerSorter;
+import name.abuchen.portfolio.ui.util.viewers.ColumnViewerSorter.OptionAwareComparator;
+import name.abuchen.portfolio.ui.util.viewers.OptionLabelProvider;
+import name.abuchen.portfolio.ui.util.viewers.ReportingPeriodColumnOptions;
+import name.abuchen.portfolio.ui.util.viewers.ShowHideColumnHelper;
+import name.abuchen.portfolio.ui.util.viewers.SimpleListContentProvider;
+import name.abuchen.portfolio.ui.util.viewers.StringEditingSupport;
+import name.abuchen.portfolio.ui.views.columns.AttributeColumn;
+import name.abuchen.portfolio.ui.views.columns.CurrencyColumn;
+import name.abuchen.portfolio.ui.views.columns.IsinColumn;
+import name.abuchen.portfolio.ui.views.columns.NoteColumn;
+import name.abuchen.portfolio.ui.views.columns.TaxonomyColumn;
+import name.abuchen.portfolio.ui.wizards.security.EditSecurityDialog;
+import name.abuchen.portfolio.ui.wizards.splits.StockSplitWizard;
 
 public final class SecuritiesTable implements ModificationListener
 {
@@ -75,6 +83,8 @@ public final class SecuritiesTable implements ModificationListener
     private TableViewer securities;
 
     private ShowHideColumnHelper support;
+    private LocalResourceManager resources;
+    private Color warningColor;
 
     public SecuritiesTable(Composite parent, AbstractFinanceView view)
     {
@@ -83,6 +93,9 @@ public final class SecuritiesTable implements ModificationListener
         Composite container = new Composite(parent, SWT.NONE);
         TableColumnLayout layout = new TableColumnLayout();
         container.setLayout(layout);
+
+        this.resources = new LocalResourceManager(JFaceResources.getResources(), container);
+        this.warningColor = resources.createColor(Colors.WARNING.swt());
 
         this.securities = new TableViewer(container, SWT.FULL_SELECTION);
 
@@ -96,6 +109,7 @@ public final class SecuritiesTable implements ModificationListener
         addDeltaColumn();
         addColumnDateOfLatestPrice();
         addColumnDateOfLatestHistoricalPrice();
+        addQuoteDeltaColumn();
 
         for (Taxonomy taxonomy : getClient().getTaxonomies())
         {
@@ -117,7 +131,8 @@ public final class SecuritiesTable implements ModificationListener
                         new Transfer[] { SecurityTransfer.getTransfer() }, //
                         new SecurityDragListener(securities));
 
-        ViewerHelper.pack(securities);
+        hookKeyListener();
+
         securities.refresh();
 
         hookContextMenu();
@@ -137,7 +152,7 @@ public final class SecuritiesTable implements ModificationListener
             @Override
             public Image getImage(Object e)
             {
-                return PortfolioPlugin.image(PortfolioPlugin.IMG_SECURITY);
+                return Images.SECURITY.image();
             }
         });
         ColumnViewerSorter.create(Security.class, "name").attachTo(column, SWT.DOWN); //$NON-NLS-1$
@@ -180,6 +195,10 @@ public final class SecuritiesTable implements ModificationListener
         column.setVisible(false);
         support.addColumn(column);
 
+        column = new CurrencyColumn();
+        column.setVisible(false);
+        support.addColumn(column);
+
         column = new Column("8", Messages.ColumnRetired, SWT.LEFT, 40); //$NON-NLS-1$
         column.setLabelProvider(new ColumnLabelProvider()
         {
@@ -198,12 +217,13 @@ public final class SecuritiesTable implements ModificationListener
     {
         Column column;
         column = new Column("4", Messages.ColumnLatest, SWT.RIGHT, 60); //$NON-NLS-1$
+        column.setMenuLabel(Messages.ColumnLatest_MenuLabel);
         column.setLabelProvider(new ColumnLabelProvider()
         {
             @Override
             public String getText(Object e)
             {
-                SecurityPrice latest = ((Security) e).getSecurityPrice(Dates.today());
+                SecurityPrice latest = ((Security) e).getSecurityPrice(LocalDate.now());
                 return latest != null ? Values.Quote.format(latest.getValue()) : null;
             }
         });
@@ -212,8 +232,8 @@ public final class SecuritiesTable implements ModificationListener
             @Override
             public int compare(Object o1, Object o2)
             {
-                SecurityPrice p1 = ((Security) o1).getSecurityPrice(Dates.today());
-                SecurityPrice p2 = ((Security) o2).getSecurityPrice(Dates.today());
+                SecurityPrice p1 = ((Security) o1).getSecurityPrice(LocalDate.now());
+                SecurityPrice p2 = ((Security) o2).getSecurityPrice(LocalDate.now());
 
                 if (p1 == null)
                     return p2 == null ? 0 : -1;
@@ -231,32 +251,34 @@ public final class SecuritiesTable implements ModificationListener
     private void addDeltaColumn()
     {
         Column column;
-        column = new Column("5", Messages.ColumnDelta, SWT.RIGHT, 60); //$NON-NLS-1$
+        column = new Column("5", Messages.ColumnChangeOnPrevious, SWT.RIGHT, 60); //$NON-NLS-1$
+        column.setMenuLabel(Messages.ColumnChangeOnPrevious_MenuLabel);
         column.setLabelProvider(new ColumnLabelProvider()
         {
             @Override
             public String getText(Object e)
             {
-                SecurityPrice price = ((Security) e).getSecurityPrice(Dates.today());
+                SecurityPrice price = ((Security) e).getSecurityPrice(LocalDate.now());
                 if (!(price instanceof LatestSecurityPrice))
                     return null;
 
                 LatestSecurityPrice latest = (LatestSecurityPrice) price;
                 return String.format("%,.2f %%", //$NON-NLS-1$
-                                ((double) (latest.getValue() - latest.getPreviousClose()) / (double) latest
-                                                .getPreviousClose()) * 100);
+                                ((double) (latest.getValue() - latest.getPreviousClose())
+                                                / (double) latest.getPreviousClose()) * 100);
             }
 
             @Override
             public Color getForeground(Object element)
             {
-                SecurityPrice price = ((Security) element).getSecurityPrice(Dates.today());
+                SecurityPrice price = ((Security) element).getSecurityPrice(LocalDate.now());
                 if (!(price instanceof LatestSecurityPrice))
                     return null;
 
                 LatestSecurityPrice latest = (LatestSecurityPrice) price;
-                return latest.getValue() >= latest.getPreviousClose() ? Display.getCurrent().getSystemColor(
-                                SWT.COLOR_DARK_GREEN) : Display.getCurrent().getSystemColor(SWT.COLOR_DARK_RED);
+                return latest.getValue() >= latest.getPreviousClose()
+                                ? Display.getCurrent().getSystemColor(SWT.COLOR_DARK_GREEN)
+                                : Display.getCurrent().getSystemColor(SWT.COLOR_DARK_RED);
             }
         });
         column.setSorter(ColumnViewerSorter.create(new Comparator<Object>()
@@ -264,8 +286,8 @@ public final class SecuritiesTable implements ModificationListener
             @Override
             public int compare(Object o1, Object o2)
             {
-                SecurityPrice p1 = ((Security) o1).getSecurityPrice(Dates.today());
-                SecurityPrice p2 = ((Security) o2).getSecurityPrice(Dates.today());
+                SecurityPrice p1 = ((Security) o1).getSecurityPrice(LocalDate.now());
+                SecurityPrice p2 = ((Security) o2).getSecurityPrice(LocalDate.now());
 
                 if (!(p1 instanceof LatestSecurityPrice))
                     p1 = null;
@@ -292,34 +314,24 @@ public final class SecuritiesTable implements ModificationListener
     {
         Column column;
         column = new Column("9", Messages.ColumnLatestDate, SWT.LEFT, 80); //$NON-NLS-1$
+        column.setMenuLabel(Messages.ColumnLatestDate_MenuLabel);
         column.setLabelProvider(new ColumnLabelProvider()
         {
             @Override
             public String getText(Object element)
             {
-                SecurityPrice latest = ((Security) element).getSecurityPrice(Dates.today());
+                SecurityPrice latest = ((Security) element).getSecurityPrice(LocalDate.now());
                 return latest != null ? Values.Date.format(latest.getTime()) : null;
-            }
-
-            @Override
-            public Color getForeground(Object element)
-            {
-                return getColor(element, SWT.COLOR_INFO_FOREGROUND);
             }
 
             @Override
             public Color getBackground(Object element)
             {
-                return getColor(element, SWT.COLOR_INFO_BACKGROUND);
-            }
+                SecurityPrice latest = ((Security) element).getSecurityPrice(LocalDate.now());
 
-            private Color getColor(Object element, int colorId)
-            {
-                SecurityPrice latest = ((Security) element).getSecurityPrice(Dates.today());
-
-                Date sevenDaysAgo = new Date(System.currentTimeMillis() - (7 * Dates.DAY_IN_MS));
-                if (latest != null && latest.getTime().before(sevenDaysAgo))
-                    return Display.getDefault().getSystemColor(colorId);
+                LocalDate sevenDaysAgo = LocalDate.now().minusDays(7);
+                if (latest != null && latest.getTime().isBefore(sevenDaysAgo))
+                    return warningColor;
                 else
                     return null;
             }
@@ -329,8 +341,8 @@ public final class SecuritiesTable implements ModificationListener
             @Override
             public int compare(Object o1, Object o2)
             {
-                SecurityPrice p1 = ((Security) o1).getSecurityPrice(Dates.today());
-                SecurityPrice p2 = ((Security) o2).getSecurityPrice(Dates.today());
+                SecurityPrice p1 = ((Security) o1).getSecurityPrice(LocalDate.now());
+                SecurityPrice p2 = ((Security) o2).getSecurityPrice(LocalDate.now());
 
                 if (p1 == null)
                     return p2 == null ? 0 : -1;
@@ -346,6 +358,7 @@ public final class SecuritiesTable implements ModificationListener
     private void addColumnDateOfLatestHistoricalPrice()
     {
         Column column = new Column("10", Messages.ColumnLatestHistoricalDate, SWT.LEFT, 80); //$NON-NLS-1$
+        column.setMenuLabel(Messages.ColumnLatestHistoricalDate_MenuLabel);
         column.setLabelProvider(new ColumnLabelProvider()
         {
             @Override
@@ -360,26 +373,15 @@ public final class SecuritiesTable implements ModificationListener
             }
 
             @Override
-            public Color getForeground(Object element)
-            {
-                return getColor(element, SWT.COLOR_INFO_FOREGROUND);
-            }
-
-            @Override
             public Color getBackground(Object element)
-            {
-                return getColor(element, SWT.COLOR_INFO_BACKGROUND);
-            }
-
-            private Color getColor(Object element, int colorId)
             {
                 List<SecurityPrice> prices = ((Security) element).getPrices();
                 if (prices.isEmpty())
                     return null;
 
                 SecurityPrice latest = prices.get(prices.size() - 1);
-                if (latest.getTime().before(new Date(System.currentTimeMillis() - (7 * Dates.DAY_IN_MS))))
-                    return Display.getDefault().getSystemColor(colorId);
+                if (latest.getTime().isBefore(LocalDate.now().minusDays(7)))
+                    return warningColor;
                 else
                     return null;
             }
@@ -400,6 +402,56 @@ public final class SecuritiesTable implements ModificationListener
                     return 1;
 
                 return p1.getTime().compareTo(p2.getTime());
+            }
+        }));
+        support.addColumn(column);
+    }
+
+    private void addQuoteDeltaColumn()
+    {
+        // create a modifiable copy as all menus share the same list of
+        // reporting periods
+        List<ReportingPeriod> options = new ArrayList<>(view.getPart().loadReportingPeriods());
+
+        BiFunction<Object, ReportingPeriod, Double> valueProvider = (element, option) -> {
+            Security security = (Security) element;
+
+            SecurityPrice latest = security.getSecurityPrice(option.getEndDate());
+            SecurityPrice previous = security.getSecurityPrice(option.getStartDate());
+
+            if (latest == null || previous == null)
+                return null;
+
+            if (previous.getValue() == 0)
+                return null;
+
+            if (previous.getTime().isAfter(option.getStartDate()))
+                return null;
+
+            return new Double((latest.getValue() - previous.getValue()) / (double) previous.getValue());
+        };
+
+        Column column = new Column("delta-w-period", Messages.ColumnQuoteChange, SWT.RIGHT, 80); //$NON-NLS-1$
+        column.setOptions(new ReportingPeriodColumnOptions(Messages.ColumnQuoteChange_Option, options));
+        column.setDescription(Messages.ColumnQuoteChange_Description);
+        column.setLabelProvider(new QuoteReportingPeriodLabelProvider(valueProvider));
+        column.setVisible(false);
+        column.setSorter(ColumnViewerSorter.create(new OptionAwareComparator<ReportingPeriod>()
+        {
+            @Override
+            public int compare(ReportingPeriod option, Object o1, Object o2)
+            {
+                Double v1 = valueProvider.apply(o1, option);
+                Double v2 = valueProvider.apply(o2, option);
+
+                if (v1 == null && v2 == null)
+                    return 0;
+                else if (v1 == null)
+                    return -1;
+                else if (v2 == null)
+                    return 1;
+
+                return Double.compare(v1.doubleValue(), v2.doubleValue());
             }
         }));
         support.addColumn(column);
@@ -498,29 +550,31 @@ public final class SecuritiesTable implements ModificationListener
         view.markDirty();
     }
 
+    private void hookKeyListener()
+    {
+        securities.getControl().addKeyListener(new KeyAdapter()
+        {
+            @Override
+            public void keyPressed(KeyEvent e)
+            {
+                if (e.keyCode == 'e' && e.stateMask == SWT.MOD1)
+                    new EditSecurityAction().run();
+            }
+        });
+    }
+
     private void hookContextMenu()
     {
         MenuManager menuMgr = new MenuManager("#PopupMenu"); //$NON-NLS-1$
         menuMgr.setRemoveAllWhenShown(true);
-        menuMgr.addMenuListener(new IMenuListener()
-        {
-            public void menuAboutToShow(IMenuManager manager)
-            {
-                fillContextMenu(manager);
-            }
-        });
+        menuMgr.addMenuListener(manager -> fillContextMenu(manager));
 
         contextMenu = menuMgr.createContextMenu(securities.getTable());
         securities.getTable().setMenu(contextMenu);
 
-        securities.getTable().addDisposeListener(new DisposeListener()
-        {
-            @Override
-            public void widgetDisposed(DisposeEvent e)
-            {
-                if (contextMenu != null)
-                    contextMenu.dispose();
-            }
+        securities.getTable().addDisposeListener(e -> {
+            if (contextMenu != null)
+                contextMenu.dispose();
         });
     }
 
@@ -530,71 +584,11 @@ public final class SecuritiesTable implements ModificationListener
         if (security == null)
             return;
 
-        manager.add(new AbstractDialogAction(Messages.SecurityMenuBuy)
-        {
-            @Override
-            Dialog createDialog(Security security)
-            {
-                return new BuySellSecurityDialog(getShell(), getClient(), security, PortfolioTransaction.Type.BUY);
-            }
-        });
+        // only if the security has a currency code, it can be bought
+        if (security.getCurrencyCode() != null)
+            fillTransactionContextMenu(manager, security);
 
-        manager.add(new AbstractDialogAction(Messages.SecurityMenuSell)
-        {
-            @Override
-            Dialog createDialog(Security security)
-            {
-                return new BuySellSecurityDialog(getShell(), getClient(), security, PortfolioTransaction.Type.SELL);
-            }
-        });
-
-        manager.add(new AbstractDialogAction(Messages.SecurityMenuDividends)
-        {
-            @Override
-            Dialog createDialog(Security security)
-            {
-                return new SecurityAccountTransactionDialog(getShell(), AccountTransaction.Type.DIVIDENDS, getClient(),
-                                null, security);
-            }
-        });
-
-        manager.add(new AbstractDialogAction(AccountTransaction.Type.TAX_REFUND.toString() + "...") //$NON-NLS-1$
-        {
-            @Override
-            Dialog createDialog(Security security)
-            {
-                return new SecurityAccountTransactionDialog(getShell(), AccountTransaction.Type.TAX_REFUND,
-                                getClient(), null, security);
-            }
-        });
-
-        manager.add(new AbstractDialogAction(Messages.SecurityMenuStockSplit)
-        {
-            @Override
-            Dialog createDialog(Security security)
-            {
-                StockSplitWizard wizard = new StockSplitWizard(getClient(), security);
-                return new WizardDialog(getShell(), wizard);
-            }
-        });
-
-        manager.add(new Separator());
-
-        manager.add(new AbstractDialogAction(Messages.SecurityMenuEditSecurity)
-        {
-            @Override
-            Dialog createDialog(Security security)
-            {
-                return new EditSecurityDialog(getShell(), getClient(), security);
-            }
-
-            @Override
-            protected void performFinish(Security security)
-            {
-                super.performFinish(security);
-                updateQuotes(security);
-            }
-        });
+        manager.add(new EditSecurityAction());
 
         manager.add(new Separator());
         new QuotesContextMenu(this.view).menuAboutToShow(manager, security);
@@ -612,8 +606,8 @@ public final class SecuritiesTable implements ModificationListener
                 {
                     if (!security.getTransactions(getClient()).isEmpty())
                     {
-                        MessageDialog.openError(getShell(), Messages.MsgDeletionNotPossible,
-                                        MessageFormat.format(Messages.MsgDeletionNotPossibleDetail, security.getName()));
+                        MessageDialog.openError(getShell(), Messages.MsgDeletionNotPossible, MessageFormat
+                                        .format(Messages.MsgDeletionNotPossibleDetail, security.getName()));
                     }
                     else
                     {
@@ -639,6 +633,59 @@ public final class SecuritiesTable implements ModificationListener
                     securities.setInput(watchlist.getSecurities());
                 }
             });
+        }
+    }
+
+    private void fillTransactionContextMenu(IMenuManager manager, Security security)
+    {
+        new OpenDialogAction(view, Messages.SecurityMenuBuy) //
+                        .type(SecurityTransactionDialog.class) //
+                        .parameters(PortfolioTransaction.Type.BUY) //
+                        .with(security) //
+                        .onSuccess(d -> performFinish(security)) //
+                        .addTo(manager);
+
+        new OpenDialogAction(view, Messages.SecurityMenuSell) //
+                        .type(SecurityTransactionDialog.class) //
+                        .parameters(PortfolioTransaction.Type.SELL) //
+                        .with(security) //
+                        .onSuccess(d -> performFinish(security)) //
+                        .addTo(manager);
+
+        new OpenDialogAction(view, Messages.SecurityMenuDividends) //
+                        .type(AccountTransactionDialog.class) //
+                        .parameters(AccountTransaction.Type.DIVIDENDS) //
+                        .with(security) //
+                        .onSuccess(d -> performFinish(security)) //
+                        .addTo(manager);
+
+        new OpenDialogAction(view, AccountTransaction.Type.TAX_REFUND + "...") //$NON-NLS-1$
+                        .type(AccountTransactionDialog.class) //
+                        .parameters(AccountTransaction.Type.TAX_REFUND) //
+                        .with(security) //
+                        .onSuccess(d -> performFinish(security)) //
+                        .addTo(manager);
+
+        manager.add(new AbstractDialogAction(Messages.SecurityMenuStockSplit)
+        {
+            @Override
+            Dialog createDialog(Security security)
+            {
+                StockSplitWizard wizard = new StockSplitWizard(getClient(), security);
+                return new WizardDialog(getShell(), wizard);
+            }
+        });
+
+        manager.add(new Separator());
+    }
+
+    private void performFinish(Security security)
+    {
+        markDirty();
+        if (!securities.getControl().isDisposed())
+        {
+            securities.refresh(security, true);
+            securities.setSelection(securities.getSelection());
         }
     }
 
@@ -674,5 +721,62 @@ public final class SecuritiesTable implements ModificationListener
         }
 
         abstract Dialog createDialog(Security security);
+    }
+
+    private final class EditSecurityAction extends AbstractDialogAction
+    {
+        private EditSecurityAction()
+        {
+            super(Messages.SecurityMenuEditSecurity);
+            setAccelerator(SWT.MOD1 | 'E');
+        }
+
+        @Override
+        Dialog createDialog(Security security)
+        {
+            return new EditSecurityDialog(getShell(), getClient(), security);
+        }
+
+        @Override
+        protected void performFinish(Security security)
+        {
+            super.performFinish(security);
+            updateQuotes(security);
+        }
+    }
+
+    private static final class QuoteReportingPeriodLabelProvider extends OptionLabelProvider<ReportingPeriod>
+    {
+        private BiFunction<Object, ReportingPeriod, Double> valueProvider;
+
+        public QuoteReportingPeriodLabelProvider(BiFunction<Object, ReportingPeriod, Double> valueProvider)
+        {
+            this.valueProvider = valueProvider;
+        }
+
+        @Override
+        public String getText(Object e, ReportingPeriod option)
+        {
+            Double value = valueProvider.apply(e, option);
+            if (value == null)
+                return null;
+
+            return String.format("%,.2f %%", value * 100); //$NON-NLS-1$
+        }
+
+        @Override
+        public Color getForeground(Object e, ReportingPeriod option)
+        {
+            Double value = valueProvider.apply(e, option);
+            if (value == null)
+                return null;
+
+            if (value.doubleValue() < 0)
+                return Display.getCurrent().getSystemColor(SWT.COLOR_DARK_RED);
+            else if (value.doubleValue() > 0)
+                return Display.getCurrent().getSystemColor(SWT.COLOR_DARK_GREEN);
+            else
+                return null;
+        }
     }
 }

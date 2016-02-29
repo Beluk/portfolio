@@ -4,26 +4,41 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.text.MessageFormat;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.crypto.SecretKey;
 
 import name.abuchen.portfolio.Messages;
 import name.abuchen.portfolio.model.Classification.Assignment;
+import name.abuchen.portfolio.money.CurrencyUnit;
 
 public class Client
 {
     /* package */static final int MAJOR_VERSION = 1;
-    /* package */static final int CURRENT_VERSION = 28;
+
+    public static final int CURRENT_VERSION = 29;
+    public static final int VERSION_WITH_CURRENCY_SUPPORT = 29;
 
     private transient PropertyChangeSupport propertyChangeSupport;
 
+    /**
+     * The (minor) version of the file format. If it is lower than the current
+     * version, then {@link ClientFactory#upgradeModel} will upgrade the model
+     * and set the version number to the current version.
+     */
     private int version = CURRENT_VERSION;
+
+    /**
+     * The (minor) version of the file format as it has been read from file.
+     */
+    private transient int fileVersionAfterRead = CURRENT_VERSION;
+
+    private String baseCurrency = CurrencyUnit.EUR;
 
     private List<Security> securities = new ArrayList<Security>();
     private List<Watchlist> watchlists;
@@ -36,7 +51,7 @@ public class Client
     private List<InvestmentPlan> plans;
     private List<Taxonomy> taxonomies;
 
-    private Map<String, String> properties; // old versions!
+    private Map<String, String> properties;
     private ClientSettings settings;
 
     @Deprecated
@@ -81,14 +96,34 @@ public class Client
             settings.doPostLoadInitialization();
     }
 
-    public int getVersion()
+    /* package */int getVersion()
     {
         return version;
     }
 
-    public void setVersion(int version)
+    /* package */void setVersion(int version)
     {
         this.version = version;
+    }
+
+    public int getFileVersionAfterRead()
+    {
+        return fileVersionAfterRead;
+    }
+
+    /* package */void setFileVersionAfterRead(int fileVersionAfterRead)
+    {
+        this.fileVersionAfterRead = fileVersionAfterRead;
+    }
+
+    public String getBaseCurrency()
+    {
+        return baseCurrency;
+    }
+
+    public void setBaseCurrency(String baseCurrency)
+    {
+        propertyChangeSupport.firePropertyChange("baseCurrency", this.baseCurrency, this.baseCurrency = baseCurrency); //$NON-NLS-1$
     }
 
     public List<InvestmentPlan> getPlans()
@@ -111,14 +146,23 @@ public class Client
         return Collections.unmodifiableList(securities);
     }
 
-    public void addSecurity(Security security)
+    /**
+     * Returns a sorted list of active securities, i.e. securities that are not
+     * marked as retired.
+     */
+    public List<Security> getActiveSecurities()
     {
-        securities.add(security);
+        return securities.stream() //
+                        .filter(s -> s.getCurrencyCode() != null) //
+                        .filter(s -> !s.isRetired()) //
+                        .sorted(new Security.ByName()) //
+                        .collect(Collectors.toList());
     }
 
-    public void addSecurities(Collection<Security> sec)
+    public void addSecurity(Security security)
     {
-        securities.addAll(sec);
+        Objects.requireNonNull(security);
+        securities.add(security);
     }
 
     public void removeSecurity(final Security security)
@@ -271,6 +315,11 @@ public class Client
     public void addTaxonomy(Taxonomy taxonomy)
     {
         taxonomies.add(taxonomy);
+    }
+
+    public void addTaxonomy(int index, Taxonomy taxonomy)
+    {
+        taxonomies.add(index, taxonomy);
     }
 
     public void removeTaxonomy(Taxonomy taxonomy)
@@ -449,5 +498,10 @@ public class Client
     public void removePropertyChangeListener(PropertyChangeListener listener)
     {
         propertyChangeSupport.removePropertyChangeListener(listener);
+    }
+
+    public void removePropertyChangeListener(String propertyName, PropertyChangeListener listener)
+    {
+        propertyChangeSupport.removePropertyChangeListener(propertyName, listener);
     }
 }

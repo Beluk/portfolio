@@ -13,30 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.inject.Inject;
+import javax.annotation.PostConstruct;
 
-import name.abuchen.portfolio.model.Account;
-import name.abuchen.portfolio.model.Classification;
-import name.abuchen.portfolio.model.Client;
-import name.abuchen.portfolio.model.ConsumerPriceIndex;
-import name.abuchen.portfolio.model.Portfolio;
-import name.abuchen.portfolio.model.Security;
-import name.abuchen.portfolio.snapshot.Aggregation;
-import name.abuchen.portfolio.snapshot.PerformanceIndex;
-import name.abuchen.portfolio.snapshot.ReportingPeriod;
-import name.abuchen.portfolio.ui.Messages;
-import name.abuchen.portfolio.ui.PortfolioPart;
-import name.abuchen.portfolio.ui.PortfolioPlugin;
-import name.abuchen.portfolio.ui.UIConstants;
-import name.abuchen.portfolio.ui.util.AbstractCSVExporter;
-import name.abuchen.portfolio.ui.util.AbstractDropDown;
-import name.abuchen.portfolio.ui.util.chart.TimelineChart;
-import name.abuchen.portfolio.ui.util.chart.TimelineChartCSVExporter;
-import name.abuchen.portfolio.ui.views.ChartConfigurator.ClientDataSeries;
-import name.abuchen.portfolio.ui.views.ChartConfigurator.DataSeries;
-
-import org.eclipse.e4.core.di.annotations.Optional;
-import org.eclipse.e4.ui.di.UIEventTopic;
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.ActionContributionItem;
 import org.eclipse.jface.action.IMenuManager;
@@ -52,9 +30,34 @@ import org.swtchart.IBarSeries;
 import org.swtchart.ILineSeries;
 import org.swtchart.ISeries;
 
+import name.abuchen.portfolio.model.Account;
+import name.abuchen.portfolio.model.Classification;
+import name.abuchen.portfolio.model.Client;
+import name.abuchen.portfolio.model.ConsumerPriceIndex;
+import name.abuchen.portfolio.model.Portfolio;
+import name.abuchen.portfolio.model.Security;
+import name.abuchen.portfolio.money.CurrencyConverter;
+import name.abuchen.portfolio.money.CurrencyConverterImpl;
+import name.abuchen.portfolio.money.ExchangeRateProviderFactory;
+import name.abuchen.portfolio.snapshot.Aggregation;
+import name.abuchen.portfolio.snapshot.PerformanceIndex;
+import name.abuchen.portfolio.snapshot.ReportingPeriod;
+import name.abuchen.portfolio.ui.Images;
+import name.abuchen.portfolio.ui.Messages;
+import name.abuchen.portfolio.ui.PortfolioPart;
+import name.abuchen.portfolio.ui.PortfolioPlugin;
+import name.abuchen.portfolio.ui.util.AbstractCSVExporter;
+import name.abuchen.portfolio.ui.util.AbstractDropDown;
+import name.abuchen.portfolio.ui.util.chart.TimelineChart;
+import name.abuchen.portfolio.ui.util.chart.TimelineChartCSVExporter;
+import name.abuchen.portfolio.ui.views.ChartConfigurator.ClientDataSeries;
+import name.abuchen.portfolio.ui.views.ChartConfigurator.DataSeries;
+
 public class PerformanceChartView extends AbstractHistoricView
 {
     private static final String KEY_AGGREGATION_PERIOD = "performance-chart-aggregation-period"; //$NON-NLS-1$
+
+    private CurrencyConverter converter;
 
     private TimelineChart chart;
     private ChartConfigurator picker;
@@ -63,17 +66,16 @@ public class PerformanceChartView extends AbstractHistoricView
 
     private Map<Object, PerformanceIndex> dataCache = new HashMap<Object, PerformanceIndex>();
 
+    @PostConstruct
+    private void setupCurrencyConverter(ExchangeRateProviderFactory factory, Client client)
+    {
+        converter = new CurrencyConverterImpl(factory, client.getBaseCurrency());
+    }
+
     @Override
     protected String getTitle()
     {
         return Messages.LabelPerformanceChart;
-    }
-
-    @Inject
-    @Optional
-    private void onConfigurationPicked(@UIEventTopic(UIConstants.Event.Configuration.PICKED) String name)
-    {
-        updateTitle(Messages.LabelPerformanceChart + " (" + name + ")"); //$NON-NLS-1$ //$NON-NLS-2$);
     }
 
     @Override
@@ -114,7 +116,7 @@ public class PerformanceChartView extends AbstractHistoricView
                 picker.showSaveMenu(getActiveShell());
             }
         };
-        save.setImageDescriptor(PortfolioPlugin.descriptor(PortfolioPlugin.IMG_SAVE));
+        save.setImageDescriptor(Images.SAVE.descriptor());
         save.setToolTipText(Messages.MenuSaveChart);
         new ActionContributionItem(save).fill(toolBar, -1);
 
@@ -126,7 +128,7 @@ public class PerformanceChartView extends AbstractHistoricView
                 picker.showMenu(getActiveShell());
             }
         };
-        config.setImageDescriptor(PortfolioPlugin.descriptor(PortfolioPlugin.IMG_CONFIG));
+        config.setImageDescriptor(Images.CONFIG.descriptor());
         config.setToolTipText(Messages.MenuConfigureChart);
         new ActionContributionItem(config).fill(toolBar, -1);
     }
@@ -145,6 +147,8 @@ public class PerformanceChartView extends AbstractHistoricView
 
         picker = new ChartConfigurator(composite, this, ChartConfigurator.Mode.PERFORMANCE);
         picker.setListener(() -> updateChart());
+        
+        updateTitle(Messages.LabelPerformanceChart + " (" + picker.getConfigurationName() + ")"); //$NON-NLS-1$ //$NON-NLS-2$);
 
         GridLayoutFactory.fillDefaults().numColumns(1).margins(0, 0).spacing(0, 0).applyTo(composite);
         GridDataFactory.fillDefaults().grab(true, true).applyTo(chart);
@@ -180,6 +184,8 @@ public class PerformanceChartView extends AbstractHistoricView
     {
         try
         {
+            updateTitle(Messages.LabelPerformanceChart + " (" + picker.getConfigurationName() + ")"); //$NON-NLS-1$ //$NON-NLS-2$);
+            
             chart.suspendUpdate(true);
             for (ISeries s : chart.getSeriesSet().getSeries())
                 chart.getSeriesSet().deleteSeries(s.getId());
@@ -224,7 +230,7 @@ public class PerformanceChartView extends AbstractHistoricView
         if (index == null)
         {
             ReportingPeriod interval = getReportingPeriod();
-            index = PerformanceIndex.forClient(getClient(), interval, warnings);
+            index = PerformanceIndex.forClient(getClient(), converter, interval, warnings);
             dataCache.put(Client.class, index);
         }
         return index;
@@ -311,7 +317,8 @@ public class PerformanceChartView extends AbstractHistoricView
 
         if (securityIndex == null)
         {
-            securityIndex = PerformanceIndex.forInvestment(getClient(), security, getReportingPeriod(), warnings);
+            securityIndex = PerformanceIndex.forInvestment(getClient(), converter, security, getReportingPeriod(),
+                            warnings);
             dataCache.put(security.getUUID(), securityIndex);
         }
 
@@ -332,8 +339,9 @@ public class PerformanceChartView extends AbstractHistoricView
         if (portfolioIndex == null)
         {
             portfolioIndex = item.isPortfolioPlus() ? PerformanceIndex //
-                            .forPortfolioPlusAccount(getClient(), portfolio, getReportingPeriod(), warnings)
-                            : PerformanceIndex.forPortfolio(getClient(), portfolio, getReportingPeriod(), warnings);
+                            .forPortfolioPlusAccount(getClient(), converter, portfolio, getReportingPeriod(), warnings)
+                            : PerformanceIndex.forPortfolio(getClient(), converter, portfolio, getReportingPeriod(),
+                                            warnings);
             dataCache.put(cacheKey, portfolioIndex);
         }
 
@@ -352,7 +360,7 @@ public class PerformanceChartView extends AbstractHistoricView
 
         if (accountIndex == null)
         {
-            accountIndex = PerformanceIndex.forAccount(getClient(), account, getReportingPeriod(), warnings);
+            accountIndex = PerformanceIndex.forAccount(getClient(), converter, account, getReportingPeriod(), warnings);
             dataCache.put(account, accountIndex);
         }
 
@@ -371,7 +379,8 @@ public class PerformanceChartView extends AbstractHistoricView
 
         if (index == null)
         {
-            index = PerformanceIndex.forClassification(getClient(), classification, getReportingPeriod(), warnings);
+            index = PerformanceIndex.forClassification(getClient(), converter, classification, getReportingPeriod(),
+                            warnings);
             dataCache.put(classification, index);
         }
 
@@ -431,7 +440,7 @@ public class PerformanceChartView extends AbstractHistoricView
     {
         private ExportDropDown(ToolBar toolBar)
         {
-            super(toolBar, Messages.MenuExportData, PortfolioPlugin.image(PortfolioPlugin.IMG_EXPORT), SWT.NONE);
+            super(toolBar, Messages.MenuExportData, Images.EXPORT.image(), SWT.NONE);
         }
 
         @Override
