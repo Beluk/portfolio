@@ -3,8 +3,6 @@ package name.abuchen.portfolio.ui.addons;
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
-import name.abuchen.portfolio.ui.Messages;
-
 import org.eclipse.core.commands.Command;
 import org.eclipse.core.commands.ParameterizedCommand;
 import org.eclipse.e4.core.commands.ECommandService;
@@ -16,6 +14,9 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
 
+import name.abuchen.portfolio.ui.Messages;
+
+@SuppressWarnings("restriction")
 public class OSXStartupAddon
 {
     @Inject
@@ -38,10 +39,11 @@ public class OSXStartupAddon
                 updatesMenuItem.setText(Messages.SystemMenuCheckForUpdates);
                 updatesMenuItem.addSelectionListener(new SelectionAdapter()
                 {
+                    @Override
                     public void widgetSelected(SelectionEvent event)
                     {
                         executeCommand("name.abuchen.portfolio.ui.command.updateproduct"); //$NON-NLS-1$
-                    };
+                    }
                 });
             }
         }

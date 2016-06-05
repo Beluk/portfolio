@@ -36,9 +36,48 @@ import name.abuchen.portfolio.ui.UIConstants;
 import name.abuchen.portfolio.ui.log.LogEntryCache;
 import name.abuchen.portfolio.ui.update.UpdateHelper;
 import name.abuchen.portfolio.ui.util.ProgressMonitorFactory;
+import name.abuchen.portfolio.ui.util.RecentFilesCache;
 
+@SuppressWarnings("restriction")
 public class StartupAddon
 {
+    private static final class UpdateExchangeRatesJob extends Job
+    {
+        private final ExchangeRateProvider provider;
+
+        private UpdateExchangeRatesJob(ExchangeRateProvider provider)
+        {
+            super(MessageFormat.format(Messages.MsgUpdatingExchangeRates, provider.getName()));
+            this.provider = provider;
+        }
+
+        @Override
+        protected IStatus run(IProgressMonitor monitor)
+        {
+            try
+            {
+                provider.load(monitor);
+            }
+            catch (Exception e)
+            {
+                // also catch runtime exceptions to make sure the update
+                // method runs in any case
+                PortfolioPlugin.log(e);
+            }
+
+            try
+            {
+                provider.update(monitor);
+            }
+            catch (IOException e)
+            {
+                PortfolioPlugin.log(e);
+            }
+
+            return Status.OK_STATUS;
+        }
+    }
+
     @PostConstruct
     public void setupProgressMontior(ProgressMonitorFactory factory)
     {
@@ -52,9 +91,15 @@ public class StartupAddon
         // force creation of log entry cache
     }
 
+    @PostConstruct
+    public void setupRecentFilesCache(RecentFilesCache cache)
+    {
+        // force creation of recent files cache
+    }
+
     @Inject
     @Optional
-    public void checkForUpdates(@UIEventTopic(UIEvents.UILifeCycle.APP_STARTUP_COMPLETE) Event event,
+    public void checkForUpdates(@UIEventTopic(UIEvents.UILifeCycle.APP_STARTUP_COMPLETE) Event event, // NOSONAR
                     final IWorkbench workbench, final EPartService partService,
                     @Preference(value = UIConstants.Preferences.AUTO_UPDATE) boolean autoUpdate)
     {
@@ -72,7 +117,7 @@ public class StartupAddon
                         UpdateHelper updateHelper = new UpdateHelper(workbench, partService);
                         updateHelper.runUpdate(monitor, true);
                     }
-                    catch (CoreException e)
+                    catch (CoreException e) // NOSONAR
                     {
                         PortfolioPlugin.log(e.getStatus());
                     }
@@ -90,32 +135,8 @@ public class StartupAddon
     {
         for (final ExchangeRateProvider provider : factory.getProviders())
         {
-            new Job(MessageFormat.format(Messages.MsgUpdatingExchangeRates, provider.getName()))
-            {
-                @Override
-                protected IStatus run(IProgressMonitor monitor)
-                {
-                    try
-                    {
-                        provider.load(monitor);
-                    }
-                    catch (IOException e)
-                    {
-                        PortfolioPlugin.log(e);
-                    }
-
-                    try
-                    {
-                        provider.update(monitor);
-                    }
-                    catch (IOException e)
-                    {
-                        PortfolioPlugin.log(e);
-                    }
-
-                    return Status.OK_STATUS;
-                }
-            }.schedule();
+            Job job = new UpdateExchangeRatesJob(provider);
+            job.schedule();
         }
     }
 

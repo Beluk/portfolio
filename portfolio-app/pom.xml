@@ -9,13 +9,13 @@
 
 	<groupId>name.abuchen.portfolio</groupId>
 	<artifactId>portfolio-app</artifactId>
-	<version>0.22.1-SNAPSHOT</version>
+	<version>0.23.2-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
 	<name>Portfolio Performance</name>
 
 	<properties>
-		<tycho-version>0.24.0</tycho-version>
+		<tycho-version>0.25.0</tycho-version>
 		<jarsigner.plugin.version>1.4</jarsigner.plugin.version>
 		<jarsigner.skip>true</jarsigner.skip>
 		<sonar.skippedModules>name.abuchen.portfolio.feature</sonar.skippedModules>
@@ -50,12 +50,12 @@
 		<repository>
 			<id>eclipse-orbit</id>
 			<layout>p2</layout>
-			<url>http://download.eclipse.org/tools/orbit/downloads/drops/R20150821153341/repository</url>
+			<url>http://download.eclipse.org/tools/orbit/downloads/drops/R20160221192158/repository</url>
 		</repository>
 		<repository>
 			<id>eclipse-luna</id>
 			<layout>p2</layout>
-			<url>http://download.eclipse.org/eclipse/updates/4.5/R-4.5.1-201509040015</url>
+			<url>http://download.eclipse.org/eclipse/updates/4.5/R-4.5.2-201602121500</url>
 		</repository>
 		<repository>
 			<id>eclipse-babel</id>
@@ -65,7 +65,7 @@
 		<repository>
 			<id>eclipse-nebula</id>
 			<layout>p2</layout>
-			<url>http://download.eclipse.org/technology/nebula/archives/Q12015/release</url>
+			<url>http://archive.eclipse.org/technology/nebula/Q42015/release</url>
 		</repository>
 		<repository>
 			<id>com.springsource.repository.bundles.release</id>
@@ -90,7 +90,7 @@
 		<dependency>
 			<groupId>org.apache.servicemix.bundles</groupId>
 			<artifactId>org.apache.servicemix.bundles.xstream</artifactId>
-			<version>1.4.7_1</version>
+			<version>1.4.8_1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.servicemix.bundles</groupId>
@@ -105,7 +105,7 @@
 		<dependency>
 			<groupId>org.swtchart</groupId>
 			<artifactId>org.swtchart</artifactId>
-			<version>0.9.0</version>
+			<version>0.10.0</version>
 		</dependency>
 		<dependency>
 			<groupId>de.engehausen</groupId>
@@ -120,7 +120,7 @@
 		<dependency>
 			<groupId>org.jsoup</groupId>
 			<artifactId>jsoup</artifactId>
-			<version>1.8.1</version>
+			<version>1.8.3</version>
 		</dependency>
 		<dependency>
 			<groupId>com.googlecode.json-simple</groupId>
@@ -193,7 +193,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.7.4.201502262128</version>
+				<version>0.7.6.201602180812</version>
 				<executions>
 					<execution>
 						<goals>
@@ -208,7 +208,6 @@
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>sonar-maven-plugin</artifactId>
-				<version>2.3</version>
 			</plugin>
 		</plugins>
 		<pluginManagement>
@@ -225,10 +224,15 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-resources-plugin</artifactId>
-					<version>2.4.1</version>
+					<version>2.7</version>
 					<configuration>
 						<encoding>UTF-8</encoding>
 					</configuration>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-dependency-plugin</artifactId>
+					<version>2.10</version>
 				</plugin>
 				<plugin>
 					<groupId>org.eclipse.tycho</groupId>
@@ -239,6 +243,14 @@
 					<groupId>org.eclipse.tycho</groupId>
 					<artifactId>target-platform-configuration</artifactId>
 					<version>${tycho-version}</version>
+				</plugin>
+				<plugin>
+					<groupId>org.eclipse.tycho</groupId>
+					<artifactId>tycho-versions-plugin</artifactId>
+					<version>${tycho-version}</version>
+					<configuration>
+						<updateVersionRangeMatchingBounds>true</updateVersionRangeMatchingBounds>
+					</configuration>
 				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
@@ -266,13 +278,13 @@
 						<alias>${alias}</alias>
 						<storepass>${storepass}</storepass>
 						<keypass>${keypass}</keypass>
-						<tsa>http://time.certum.pl/</tsa>
+						<tsa>https://timestamp.geotrust.com/tsa</tsa>
 					</configuration>
 				</plugin>
 				<plugin>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>findbugs-maven-plugin</artifactId>
-					<version>2.3.2</version>
+					<version>2.5.5</version>
 					<configuration>
 						<findbugsXmlOutput>true</findbugsXmlOutput>
 						<findbugsXmlWithMessages>true</findbugsXmlWithMessages>
@@ -280,19 +292,40 @@
 					</configuration>
 				</plugin>
 				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-checkstyle-plugin</artifactId>
+					<version>2.17</version>
+					<executions>
+						<execution>
+							<id>validate</id>
+							<phase>validate</phase>
+							<configuration>
+								<configLocation>portfolioCheckstyle.xml</configLocation>
+								<encoding>UTF-8</encoding>
+								<consoleOutput>true</consoleOutput>
+								<failsOnError>true</failsOnError>
+								<linkXRef>false</linkXRef>
+							</configuration>
+							<goals>
+								<goal>check</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+				<plugin>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>sonar-maven-plugin</artifactId>
-					<version>2.1</version>
+					<version>3.0.2</version>
 				</plugin>
 				<plugin>
 					<groupId>name.abuchen</groupId>
 					<artifactId>fix-info-plist-maven-plugin</artifactId>
-					<version>1.0</version>
+					<version>1.1</version>
 				</plugin>
 				<plugin>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>exec-maven-plugin</artifactId>
-					<version>1.4.0</version>
+					<version>1.5.0</version>
 				</plugin>
 			</plugins>
 		</pluginManagement>
@@ -313,7 +346,6 @@
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-dependency-plugin</artifactId>
-						<version>2.6</version>
 						<executions>
 							<execution>
 								<id>copy-dependencies</id>
@@ -333,7 +365,6 @@
 					</plugin>
 					<plugin>
 						<artifactId>maven-resources-plugin</artifactId>
-						<version>2.4.3</version>
 						<executions>
 							<execution>
 								<id>copy-resources</id>

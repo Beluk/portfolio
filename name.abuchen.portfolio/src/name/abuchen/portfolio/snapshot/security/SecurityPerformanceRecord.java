@@ -14,10 +14,12 @@ import name.abuchen.portfolio.model.Client;
 import name.abuchen.portfolio.model.InvestmentVehicle;
 import name.abuchen.portfolio.model.Named;
 import name.abuchen.portfolio.model.Security;
+import name.abuchen.portfolio.model.SecurityPrice;
 import name.abuchen.portfolio.model.Transaction;
 import name.abuchen.portfolio.money.CurrencyConverter;
 import name.abuchen.portfolio.money.Money;
 import name.abuchen.portfolio.money.MutableMoney;
+import name.abuchen.portfolio.money.Quote;
 import name.abuchen.portfolio.money.Values;
 import name.abuchen.portfolio.snapshot.PerformanceIndex;
 import name.abuchen.portfolio.snapshot.ReportingPeriod;
@@ -31,6 +33,7 @@ public final class SecurityPerformanceRecord implements Adaptable
         private static final ResourceBundle RESOURCES = ResourceBundle
                         .getBundle("name.abuchen.portfolio.snapshot.labels"); //$NON-NLS-1$
 
+        @Override
         public String toString()
         {
             return RESOURCES.getString("dividends." + name()); //$NON-NLS-1$
@@ -38,7 +41,7 @@ public final class SecurityPerformanceRecord implements Adaptable
     }
 
     private final Security security;
-    private List<Transaction> transactions = new ArrayList<Transaction>();
+    private List<Transaction> transactions = new ArrayList<>();
 
     /**
      * internal rate of return of security {@link #calculateIRR()}
@@ -81,6 +84,11 @@ public final class SecurityPerformanceRecord implements Adaptable
     private Money marketValue;
 
     /**
+     * Latest quote
+     */
+    private SecurityPrice quote;
+
+    /**
      * fifo cost of shares held {@link #calculateFifoCosts()}
      */
     private Money fifoCost;
@@ -103,7 +111,7 @@ public final class SecurityPerformanceRecord implements Adaptable
     /**
      * cost per shares held {@link #calculateFifoCosts()}
      */
-    private Money fifoCostPerSharesHeld;
+    private Quote fifoCostPerSharesHeld;
 
     /**
      * sum of all dividend payments {@link #calculateDividends()}
@@ -126,7 +134,17 @@ public final class SecurityPerformanceRecord implements Adaptable
      */
     private Periodicity periodicity = Periodicity.UNKNOWN;
 
-    /* package */SecurityPerformanceRecord(Security security)
+    /**
+     * market value - fifo cost of shares held {@link #calculateFifoCosts()}
+     */
+    private Money capitalGainsOnHoldings;
+
+    /**
+     * {@link capitalGainsOnHoldings} in percent
+     */
+    private double capitalGainsOnHoldingsPercent;
+
+    /* package */ SecurityPerformanceRecord(Security security)
     {
         this.security = security;
     }
@@ -191,6 +209,16 @@ public final class SecurityPerformanceRecord implements Adaptable
         return marketValue;
     }
 
+    public Quote getQuote()
+    {
+        return Quote.of(security.getCurrencyCode(), quote.getValue());
+    }
+
+    public SecurityPrice getLatestSecurityPrice()
+    {
+        return quote;
+    }
+
     public Money getFifoCost()
     {
         return fifoCost;
@@ -198,12 +226,12 @@ public final class SecurityPerformanceRecord implements Adaptable
 
     public Money getCapitalGainsOnHoldings()
     {
-        return marketValue.subtract(fifoCost);
+        return capitalGainsOnHoldings;
     }
 
     public double getCapitalGainsOnHoldingsPercent()
     {
-        return ((double) marketValue.getAmount() / (double) fifoCost.getAmount()) - 1;
+        return capitalGainsOnHoldingsPercent;
     }
 
     public Money getFees()
@@ -221,7 +249,7 @@ public final class SecurityPerformanceRecord implements Adaptable
         return sharesHeld;
     }
 
-    public Money getFifoCostPerSharesHeld()
+    public Quote getFifoCostPerSharesHeld()
     {
         return fifoCostPerSharesHeld;
     }
@@ -278,12 +306,14 @@ public final class SecurityPerformanceRecord implements Adaptable
             return null;
     }
 
-    /* package */void addTransaction(Transaction t)
+    /* package */
+    void addTransaction(Transaction t)
     {
         transactions.add(t);
     }
 
-    /* package */void calculate(Client client, CurrencyConverter converter, ReportingPeriod period)
+    /* package */
+    void calculate(Client client, CurrencyConverter converter, ReportingPeriod period)
     {
         Collections.sort(transactions, new TransactionComparator());
 
@@ -304,7 +334,9 @@ public final class SecurityPerformanceRecord implements Adaptable
         for (Transaction t : transactions)
             if (t instanceof DividendFinalTransaction)
                 mv.add(t.getMonetaryAmount().with(converter.at(t.getDate())));
+
         this.marketValue = mv.toMoney();
+        this.quote = security.getSecurityPrice(LocalDate.now());
     }
 
     private void calculateIRR(CurrencyConverter converter)
@@ -335,11 +367,14 @@ public final class SecurityPerformanceRecord implements Adaptable
         this.sharesHeld = cost.getSharesHeld();
 
         Money netFifoCost = cost.getNetFifoCost();
-        this.fifoCostPerSharesHeld = Money.of(netFifoCost.getCurrencyCode(),
-                        Math.round(netFifoCost.getAmount() * Values.Share.factor() / (double) sharesHeld));
+        this.fifoCostPerSharesHeld = Quote.of(netFifoCost.getCurrencyCode(), Math.round(netFifoCost.getAmount()
+                        * Values.Share.factor() * Values.Quote.factorToMoney() / (double) sharesHeld));
 
         this.fees = cost.getFees();
         this.taxes = cost.getTaxes();
+
+        this.capitalGainsOnHoldings = marketValue.subtract(fifoCost);
+        this.capitalGainsOnHoldingsPercent = ((double) marketValue.getAmount() / (double) fifoCost.getAmount()) - 1;
     }
 
     private void calculateDividends(CurrencyConverter converter)

@@ -9,9 +9,7 @@ import javax.inject.Inject;
 
 import org.eclipse.jface.layout.TableColumnLayout;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
-import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Composite;
@@ -57,8 +55,8 @@ public class ExchangeRatesListView extends AbstractListView
 
         TableViewer indeces = new TableViewer(container, SWT.FULL_SELECTION);
 
-        ShowHideColumnHelper support = new ShowHideColumnHelper(
-                        ExchangeRatesListView.class.getSimpleName() + "@top", getPreferenceStore(), indeces, layout); //$NON-NLS-1$
+        ShowHideColumnHelper support = new ShowHideColumnHelper(ExchangeRatesListView.class.getSimpleName() + "@top", //$NON-NLS-1$
+                        getPreferenceStore(), indeces, layout);
 
         Column column = new Column(Messages.ColumnBaseCurrency, SWT.None, 80);
         column.setLabelProvider(new ColumnLabelProvider()
@@ -108,14 +106,10 @@ public class ExchangeRatesListView extends AbstractListView
         indeces.setInput(providerFactory.getAvailableTimeSeries());
         indeces.refresh();
 
-        indeces.addSelectionChangedListener(new ISelectionChangedListener()
-        {
-            public void selectionChanged(SelectionChangedEvent event)
-            {
-                ExchangeRateTimeSeries series = (ExchangeRateTimeSeries) ((IStructuredSelection) event.getSelection())
-                                .getFirstElement();
-                refreshChart(series);
-            }
+        indeces.addSelectionChangedListener(event -> {
+            ExchangeRateTimeSeries series = (ExchangeRateTimeSeries) ((IStructuredSelection) event.getSelection())
+                            .getFirstElement();
+            refreshChart(series);
         });
     }
 
@@ -129,36 +123,43 @@ public class ExchangeRatesListView extends AbstractListView
 
     private void refreshChart(ExchangeRateTimeSeries series)
     {
-        for (ISeries s : chart.getSeriesSet().getSeries())
-            chart.getSeriesSet().deleteSeries(s.getId());
-
-        if (series == null || series.getRates().isEmpty())
+        try
         {
-            chart.getTitle().setText(Messages.LabelCurrencies);
-            return;
+            chart.suspendUpdate(true);
+            for (ISeries s : chart.getSeriesSet().getSeries())
+                chart.getSeriesSet().deleteSeries(s.getId());
+
+            if (series == null || series.getRates().isEmpty())
+            {
+                chart.getTitle().setText(Messages.LabelCurrencies);
+                return;
+            }
+
+            List<ExchangeRate> rates = series.getRates();
+
+            LocalDate[] dates = new LocalDate[rates.size()];
+            double[] values = new double[rates.size()];
+
+            int ii = 0;
+            for (ExchangeRate rate : rates)
+            {
+                dates[ii] = rate.getTime();
+                values[ii] = rate.getValue().doubleValue();
+                ii++;
+            }
+
+            String title = MessageFormat.format("{0}/{1} ({2})", //$NON-NLS-1$
+                            series.getTermCurrency(), series.getBaseCurrency(), series.getProvider().getName());
+
+            chart.getTitle().setText(title);
+            chart.addDateSeries(dates, values, Colors.TOTALS, title);
+
+            chart.adjustRange();
         }
-
-        List<ExchangeRate> rates = series.getRates();
-
-        LocalDate[] dates = new LocalDate[rates.size()];
-        double[] values = new double[rates.size()];
-
-        int ii = 0;
-        for (ExchangeRate rate : rates)
+        finally
         {
-            dates[ii] = rate.getTime();
-            values[ii] = rate.getValue().doubleValue();
-            ii++;
+            chart.suspendUpdate(false);
+            chart.redraw();
         }
-
-        String title = MessageFormat.format("{0}/{1} ({2})", //$NON-NLS-1$
-                        series.getTermCurrency(), series.getBaseCurrency(), series.getProvider().getName());
-
-        chart.getTitle().setText(title);
-        chart.addDateSeries(dates, values, Colors.TOTALS, title);
-
-        chart.getAxisSet().adjustRange();
-
-        chart.redraw();
     }
 }

@@ -168,9 +168,19 @@ public class StatementOfAssetsHistoryView extends AbstractHistoricView
     @Override
     public void setFocus()
     {
-        chart.getAxisSet().adjustRange();
+        try
+        {
+            chart.setRedraw(false);
+            chart.adjustRange();
+        }
+        finally
+        {
+            chart.setRedraw(true);
+        }
+
         chart.setFocus();
     }
+
 
     @Override
     public void notifyModelUpdated()
@@ -199,7 +209,7 @@ public class StatementOfAssetsHistoryView extends AbstractHistoricView
 
             setChartSeries();
 
-            chart.getAxisSet().adjustRange();
+            chart.adjustRange();
         }
         finally
         {
@@ -294,7 +304,8 @@ public class StatementOfAssetsHistoryView extends AbstractHistoricView
                                 item.getLabel());
                 item.configure(iaSeries);
                 break;
-
+            default:
+                throw new IllegalArgumentException(String.valueOf(item.getInstance()));
         }
     }
 

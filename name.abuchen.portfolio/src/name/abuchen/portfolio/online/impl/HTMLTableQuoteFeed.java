@@ -42,6 +42,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
     {
         static final ThreadLocal<DecimalFormat> DECIMAL_FORMAT_GERMAN = new ThreadLocal<DecimalFormat>()
         {
+            @Override
             protected DecimalFormat initialValue()
             {
                 return new DecimalFormat("#,##0.###", new DecimalFormatSymbols(Locale.GERMAN)); //$NON-NLS-1$
@@ -50,6 +51,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
 
         static final ThreadLocal<DecimalFormat> DECIMAL_FORMAT_ENGLISH = new ThreadLocal<DecimalFormat>()
         {
+            @Override
             protected DecimalFormat initialValue()
             {
                 return new DecimalFormat("#,##0.###", new DecimalFormatSymbols(Locale.ENGLISH)); //$NON-NLS-1$
@@ -82,14 +84,15 @@ public class HTMLTableQuoteFeed implements QuoteFeed
         {
             String text = value.text().trim();
 
-            double quote;
+            // determine format based on the relative location of the last comma
+            // and dot, e.g. the last comma indicates a German number format
+            int lastDot = text.lastIndexOf('.');
+            int lastComma = text.lastIndexOf(',');
+            DecimalFormat format = Math.max(lastDot, lastComma) == lastComma ? DECIMAL_FORMAT_GERMAN.get()
+                            : DECIMAL_FORMAT_ENGLISH.get();
 
-            if (text.length() > 3 && text.charAt(text.length() - 3) == '.')
-                quote = DECIMAL_FORMAT_ENGLISH.get().parse(text).doubleValue();
-            else
-                quote = DECIMAL_FORMAT_GERMAN.get().parse(text).doubleValue();
-
-            return Math.round(quote * 100);
+            double quote = format.parse(text).doubleValue();
+            return Math.round(quote * Values.Quote.factor());
         }
     }
 
@@ -122,7 +125,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
                     price.setTime(date);
                     return;
                 }
-                catch (DateTimeParseException e)
+                catch (DateTimeParseException e) // NOSONAR
                 {
                     // continue with next pattern
                 }
@@ -179,17 +182,19 @@ public class HTMLTableQuoteFeed implements QuoteFeed
 
     private static class Spec
     {
+        private final Column column;
+        private final int index;
+
         public Spec(Column column, int index)
         {
             this.column = column;
             this.index = index;
         }
-
-        private final Column column;
-        private final int index;
     }
 
-    private final Column[] columns = new Column[] { new DateColumn(), new CloseColumn(), new HighColumn(),
+    public static final String ID = "GENERIC_HTML_TABLE"; //$NON-NLS-1$
+
+    private static final Column[] COLUMNS = new Column[] { new DateColumn(), new CloseColumn(), new HighColumn(),
                     new LowColumn() };
 
     private final PageCache cache = new PageCache();
@@ -197,7 +202,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
     @Override
     public String getId()
     {
-        return "GENERIC_HTML_TABLE"; //$NON-NLS-1$
+        return ID;
     }
 
     @Override
@@ -263,14 +268,15 @@ public class HTMLTableQuoteFeed implements QuoteFeed
             errors.add(new IOException(MessageFormat.format(Messages.MsgMissingFeedURL, security.getName())));
             return Collections.emptyList();
         }
-        
+
         List<LatestSecurityPrice> answer = cache.lookup(feedURL);
         if (answer != null)
             return answer;
 
         answer = parseFromURL(feedURL, errors);
 
-        cache.put(feedURL, answer);
+        if (!answer.isEmpty())
+            cache.put(feedURL, answer);
 
         return answer;
     }
@@ -284,14 +290,14 @@ public class HTMLTableQuoteFeed implements QuoteFeed
     @Override
     public List<Exchange> getExchanges(Security subject, List<Exception> errors)
     {
-        return null;
+        return Collections.emptyList();
     }
 
     @SuppressWarnings("nls")
     protected List<LatestSecurityPrice> parseFromURL(String url, List<Exception> errors)
     {
         // without a user agent, some sites serve a mobile/alternative version
-        String userAgent = null;
+        String userAgent;
 
         String os = System.getProperty("os.name", "unknown").toLowerCase();
         if (os.startsWith("windows"))
@@ -304,7 +310,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
         try
         {
             String escapedUrl = new URI(url).toASCIIString();
-            return parse(Jsoup.connect(escapedUrl).userAgent(userAgent).get(), errors);
+            return parse(Jsoup.connect(escapedUrl).userAgent(userAgent).timeout(30000).get(), errors);
         }
         catch (URISyntaxException | IOException e)
         {
@@ -320,13 +326,13 @@ public class HTMLTableQuoteFeed implements QuoteFeed
 
     private List<LatestSecurityPrice> parse(Document document, List<Exception> errors)
     {
-        List<LatestSecurityPrice> prices = new ArrayList<LatestSecurityPrice>();
+        List<LatestSecurityPrice> prices = new ArrayList<>();
 
         // first: find tables
         Elements tables = document.getElementsByTag("table"); //$NON-NLS-1$
         for (Element table : tables)
         {
-            List<Spec> specs = new ArrayList<Spec>();
+            List<Spec> specs = new ArrayList<>();
 
             int rowIndex = buildSpecFromTable(table, specs);
 
@@ -358,7 +364,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
 
         // if no quotes could be extract, log HTML for further analysis
         if (prices.isEmpty())
-            errors.add(new IOException(document.html()));
+            errors.add(new IOException(MessageFormat.format(Messages.MsgNoQuotesFoundInHTML, document.html())));
 
         return prices;
     }
@@ -368,7 +374,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
     {
         // check if thead exists
         Elements header = table.select("> thead > tr > th");
-        if (header.size() > 0)
+        if (!header.isEmpty())
         {
             buildSpecFromRow(header, specs);
             return 0;
@@ -376,7 +382,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
 
         // check if th exist in body
         header = table.select("> tbody > tr > th");
-        if (header.size() > 0)
+        if (!header.isEmpty())
         {
             buildSpecFromRow(header, specs);
             return 0;
@@ -386,7 +392,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
         int rowIndex = 0;
 
         Elements rows = table.select("> tbody > tr");
-        if (rows.size() > 0)
+        if (!rows.isEmpty())
         {
             Element firstRow = rows.get(0);
             buildSpecFromRow(firstRow.select("> td"), specs);
@@ -405,8 +411,8 @@ public class HTMLTableQuoteFeed implements QuoteFeed
 
     private void buildSpecFromRow(Elements row, List<Spec> specs)
     {
-        Set<Column> available = new HashSet<Column>();
-        for (Column column : columns)
+        Set<Column> available = new HashSet<>();
+        for (Column column : COLUMNS)
             available.add(column);
 
         for (int ii = 0; ii < row.size(); ii++)
@@ -447,7 +453,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
         Elements cells = row.select("> td"); //$NON-NLS-1$
 
         // row can be empty if it contains only 'th' elements
-        if (cells.size() == 0)
+        if (cells.size() <= 1)
             return null;
 
         LatestSecurityPrice price = new LatestSecurityPrice();
@@ -466,7 +472,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
      */
     public static void main(String[] args) throws IOException
     {
-        PrintWriter writer = new PrintWriter(System.out);
+        PrintWriter writer = new PrintWriter(System.out); // NOSONAR
         for (String arg : args)
             if (arg.charAt(0) != '#')
                 doLoad(arg, writer);
@@ -480,8 +486,8 @@ public class HTMLTableQuoteFeed implements QuoteFeed
         writer.println(source);
         writer.println("--------");
 
-        List<LatestSecurityPrice> prices = null;
-        List<Exception> errors = new ArrayList<Exception>();
+        List<LatestSecurityPrice> prices;
+        List<Exception> errors = new ArrayList<>();
 
         if (source.startsWith("http"))
         {
@@ -497,7 +503,7 @@ public class HTMLTableQuoteFeed implements QuoteFeed
         }
 
         for (Exception error : errors)
-            error.printStackTrace(writer);
+            error.printStackTrace(writer); // NOSONAR
 
         for (LatestSecurityPrice p : prices)
         {

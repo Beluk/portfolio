@@ -70,7 +70,7 @@ import name.abuchen.portfolio.money.Money;
             {
                 extract(results, strings, field2column);
             }
-            catch (ParseException | UnsupportedOperationException e)
+            catch (ParseException | UnsupportedOperationException | IllegalArgumentException e)
             {
                 errors.add(new IOException(MessageFormat.format(Messages.CSVLineXwithMsgY, lineNo, e.getMessage()), e));
             }
@@ -95,18 +95,14 @@ import name.abuchen.portfolio.money.Money;
         String isin = getText(Messages.CSVColumn_ISIN, rawValues, field2column);
         String tickerSymbol = getText(Messages.CSVColumn_TickerSymbol, rawValues, field2column);
         String wkn = getText(Messages.CSVColumn_WKN, rawValues, field2column);
+        String name = getText(Messages.CSVColumn_SecurityName, rawValues, field2column);
 
-        if (isin != null || tickerSymbol != null || wkn != null)
+        if (isin != null || tickerSymbol != null || wkn != null || name != null)
         {
-            String name = getText(Messages.CSVColumn_SecurityName, rawValues, field2column);
-
-            security = securityCache.lookup(isin, tickerSymbol, wkn, () -> {
+            name = constructName(isin, tickerSymbol, wkn, name);
+            security = securityCache.lookup(isin, tickerSymbol, wkn, name, () -> {
                 Security s = new Security();
                 s.setCurrencyCode(client.getBaseCurrency());
-                s.setName(constructName(isin, tickerSymbol, wkn, name));
-                s.setIsin(isin);
-                s.setTickerSymbol(tickerSymbol);
-                s.setWkn(wkn);
 
                 onSecurityCreated.accept(s);
 

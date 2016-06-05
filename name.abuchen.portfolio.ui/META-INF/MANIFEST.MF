@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: %Bundle-Name
 Bundle-SymbolicName: name.abuchen.portfolio.ui;singleton:=true
-Bundle-Version: 0.22.1.qualifier
+Bundle-Version: 0.23.2.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Bundle-ActivationPolicy: lazy
 Bundle-Activator: name.abuchen.portfolio.ui.PortfolioPlugin
@@ -12,19 +12,6 @@ Import-Package: de.engehausen.treemap,
  de.engehausen.treemap.swt,
  javax.annotation;version="1.1.0",
  javax.inject;version="1.0.0",
- name.abuchen.portfolio.checks,
- name.abuchen.portfolio.datatransfer,
- name.abuchen.portfolio.datatransfer.actions,
- name.abuchen.portfolio.datatransfer.csv,
- name.abuchen.portfolio.datatransfer.pdf,
- name.abuchen.portfolio.math,
- name.abuchen.portfolio.model,
- name.abuchen.portfolio.money,
- name.abuchen.portfolio.online,
- name.abuchen.portfolio.online.impl,
- name.abuchen.portfolio.snapshot,
- name.abuchen.portfolio.snapshot.security,
- name.abuchen.portfolio.util,
  org.apache.commons.csv;version="1.0.0.BUILD-20080106",
  org.apache.commons.lang3;version="3.4.0",
  org.apache.commons.lang3.exception;version="3.4.0",
@@ -52,14 +39,19 @@ Import-Package: de.engehausen.treemap,
  org.eclipse.e4.ui.di,
  org.eclipse.e4.ui.internal.workbench,
  org.eclipse.e4.ui.model.application,
+ org.eclipse.e4.ui.model.application.commands,
  org.eclipse.e4.ui.model.application.ui,
  org.eclipse.e4.ui.model.application.ui.basic,
  org.eclipse.e4.ui.model.application.ui.impl,
+ org.eclipse.e4.ui.model.application.ui.menu,
  org.eclipse.e4.ui.model.application.ui.menu.impl,
  org.eclipse.e4.ui.services,
  org.eclipse.e4.ui.workbench,
  org.eclipse.e4.ui.workbench.lifecycle,
  org.eclipse.e4.ui.workbench.modeling,
+ org.eclipse.emf.common.notify,
+ org.eclipse.emf.ecore,
+ org.eclipse.emf.ecore.util,
  org.eclipse.equinox.p2.core;version="2.0.0",
  org.eclipse.equinox.p2.engine;version="2.2.0",
  org.eclipse.equinox.p2.metadata;version="2.1.0",
@@ -98,4 +90,5 @@ Import-Package: de.engehausen.treemap,
  org.osgi.service.prefs;version="1.1.1",
  org.swtchart
 Require-Bundle: org.eclipse.core.expressions,
- com.ibm.icu;bundle-version="52.1.0"
+ com.ibm.icu;bundle-version="52.1.0",
+ name.abuchen.portfolio;bundle-version="0.23.2"

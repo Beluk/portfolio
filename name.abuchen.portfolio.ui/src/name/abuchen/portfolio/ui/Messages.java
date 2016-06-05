@@ -13,6 +13,7 @@ public class Messages extends NLS
     public static String AccountMenuDelete;
     public static String AccountMenuDeleteTransaction;
     public static String AccountMenuTransfer;
+    public static String Balance;
     public static String BaseCurrencyCue;
     public static String BaseCurrencyMigrationPage_Description;
     public static String BaseCurrencyMigrationPage_ExplanationIndividualCurrency;
@@ -115,6 +116,7 @@ public class Messages extends NLS
     public static String ColumnFieldType;
     public static String ColumnFix;
     public static String ColumnForeignCurrencies;
+    public static String ColumnGrossValue;
     public static String ColumnIndex;
     public static String ColumnInterval;
     public static String ColumnIRR;
@@ -311,6 +313,7 @@ public class Messages extends NLS
     public static String LabelAccumulatedInterest;
     public static String LabelAccumulatedTaxes;
     public static String LabelAggregationDaily;
+    public static String LabelAllFiles;
     public static String LabelAllSecurities;
     public static String LabelAvailableAttributes;
     public static String LabelColumns;
@@ -398,6 +401,7 @@ public class Messages extends NLS
     public static String LabelUnknownVersion;
     public static String LabelUnnamedXml;
     public static String LabelUpdatesAvailable;
+    public static String LabelUseGrossDividends;
     public static String LabelValueInboundDelivery;
     public static String LabelValueOutboundDelivery;
     public static String LabelViewPieChart;
@@ -463,6 +467,7 @@ public class Messages extends NLS
     public static String MsgAccountFromMissing;
     public static String MsgAccountMustBeDifferent;
     public static String MsgAccountToMissing;
+    public static String MsgCannotRestartBecauseOfOpenDialog;
     public static String MsgConfirmInstall;
     public static String MsgDateIsInTheFuture;
     public static String MsgDeletionNotPossible;
@@ -597,6 +602,7 @@ public class Messages extends NLS
     public static String SplitWizardReviewTransactionsDescription;
     public static String SplitWizardReviewTransactionsTitle;
     public static String SystemMenuCheckForUpdates;
+    public static String TabAccountBalanceChart;
     public static String TabTransactions;
     public static String TitlePasswordDialog;
     public static String TooltipMaxDrawdown;
@@ -604,6 +610,7 @@ public class Messages extends NLS
     public static String TooltipMaxDrawdownDurationEndOfPeriod;
     public static String TooltipMaxDrawdownDurationFromXtoY;
     public static String TooltipMaxDurationLowToHigh;
+    public static String TooltipQuoteAtDate;
     public static String TooltipSemiVolatility;
     public static String TooltipVolatility;
     public static String WatchlistDelete;

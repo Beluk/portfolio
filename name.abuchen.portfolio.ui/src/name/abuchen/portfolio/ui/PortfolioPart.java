@@ -8,7 +8,9 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.MessageFormat;
+import java.util.EnumSet;
 import java.util.LinkedList;
+import java.util.List;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -22,6 +24,7 @@ import org.eclipse.e4.core.contexts.ContextInjectionFactory;
 import org.eclipse.e4.core.contexts.EclipseContextFactory;
 import org.eclipse.e4.core.contexts.IEclipseContext;
 import org.eclipse.e4.core.di.extensions.Preference;
+import org.eclipse.e4.core.services.events.IEventBroker;
 import org.eclipse.e4.ui.di.Focus;
 import org.eclipse.e4.ui.di.Persist;
 import org.eclipse.e4.ui.model.application.ui.MDirtyable;
@@ -54,8 +57,10 @@ import name.abuchen.portfolio.model.Client;
 import name.abuchen.portfolio.model.ClientFactory;
 import name.abuchen.portfolio.snapshot.ReportingPeriod;
 import name.abuchen.portfolio.ui.dialogs.PasswordDialog;
+import name.abuchen.portfolio.ui.views.ExceptionView;
 import name.abuchen.portfolio.ui.wizards.client.ClientMigrationDialog;
 
+@SuppressWarnings("restriction")
 public class PortfolioPart implements LoadClientThread.Callback
 {
     private abstract class BuildContainerRunnable implements Runnable
@@ -83,6 +88,9 @@ public class PortfolioPart implements LoadClientThread.Callback
         public abstract void createContainer(Composite parent);
     }
 
+    // compatibility: the value used to be stored in the AbstractHistoricView
+    private static final String REPORTING_PERIODS_KEY = "AbstractHistoricView"; //$NON-NLS-1$
+
     private File clientFile;
     private Client client;
 
@@ -102,6 +110,9 @@ public class PortfolioPart implements LoadClientThread.Callback
     IEclipseContext context;
 
     @Inject
+    IEventBroker broker;
+
+    @Inject
     @Preference
     IEclipsePreferences preferences;
 
@@ -117,10 +128,11 @@ public class PortfolioPart implements LoadClientThread.Callback
         }
 
         // is file name available? (e.g. load file, open on startup)
-        String filename = part.getPersistedState().get(UIConstants.Parameter.FILE);
+        String filename = part.getPersistedState().get(UIConstants.File.PERSISTED_STATE_KEY);
         if (filename != null)
         {
             clientFile = new File(filename);
+            broker.post(UIConstants.Event.File.OPENED, clientFile.getAbsolutePath());
             loadPreferences();
         }
 
@@ -148,7 +160,7 @@ public class PortfolioPart implements LoadClientThread.Callback
         container.setLayout(new FillLayout());
 
         SashForm sash = new SashForm(container, SWT.HORIZONTAL | SWT.SMOOTH);
-        sash.setSashWidth(1);
+        sash.setSashWidth(3);
 
         Composite navigationBar = new Composite(sash, SWT.NONE);
         GridLayoutFactory.fillDefaults().numColumns(1).spacing(0, 0).margins(0, 0).applyTo(navigationBar);
@@ -309,7 +321,7 @@ public class PortfolioPart implements LoadClientThread.Callback
     }
 
     @PreDestroy
-    public void destroy(MPart part)
+    public void destroy()
     {
         if (clientFile != null)
             storePreferences();
@@ -329,12 +341,13 @@ public class PortfolioPart implements LoadClientThread.Callback
 
         try
         {
-            part.getPersistedState().put(UIConstants.Parameter.FILE, clientFile.getAbsolutePath());
+            part.getPersistedState().put(UIConstants.File.PERSISTED_STATE_KEY, clientFile.getAbsolutePath());
 
             if (preferences.getBoolean(UIConstants.Preferences.CREATE_BACKUP_BEFORE_SAVING, true))
                 createBackup(shell, clientFile);
 
             ClientFactory.save(client, clientFile, null, null);
+            broker.post(UIConstants.Event.File.SAVED, clientFile.getAbsolutePath());
             dirty.setDirty(false);
 
             storePreferences();
@@ -363,11 +376,12 @@ public class PortfolioPart implements LoadClientThread.Callback
         }
         catch (IOException e)
         {
+            PortfolioPlugin.log(e);
             MessageDialog.openError(shell, Messages.LabelError, e.getMessage());
         }
     }
 
-    public void doSaveAs(MPart part, Shell shell, String extension, String encryptionMethod)
+    public void doSaveAs(MPart part, Shell shell, String extension, String encryptionMethod) // NOSONAR
     {
         FileDialog dialog = new FileDialog(shell, SWT.SAVE);
 
@@ -407,8 +421,9 @@ public class PortfolioPart implements LoadClientThread.Callback
         {
             clientFile = localFile;
 
-            part.getPersistedState().put(UIConstants.Parameter.FILE, clientFile.getAbsolutePath());
+            part.getPersistedState().put(UIConstants.File.PERSISTED_STATE_KEY, clientFile.getAbsolutePath());
             ClientFactory.save(client, clientFile, encryptionMethod, password);
+            broker.post(UIConstants.Event.File.SAVED, clientFile.getAbsolutePath());
 
             dirty.setDirty(false);
             part.setLabel(clientFile.getName());
@@ -433,7 +448,7 @@ public class PortfolioPart implements LoadClientThread.Callback
         return preferenceStore;
     }
 
-    /* package */void markDirty()
+                    /* package */void markDirty()
     {
         dirty.setDirty(true);
     }
@@ -448,6 +463,7 @@ public class PortfolioPart implements LoadClientThread.Callback
         });
     }
 
+    @SuppressWarnings("unchecked")
     public void activateView(String target, Object parameter)
     {
         disposeView();
@@ -459,24 +475,31 @@ public class PortfolioPart implements LoadClientThread.Callback
             if (clazz == null)
                 return;
 
-            IEclipseContext viewContext = this.context.createChild();
-            viewContext.set(Client.class, this.client);
-            viewContext.set(IPreferenceStore.class, this.preferenceStore);
-            viewContext.set(PortfolioPart.class, this);
-
-            view = (AbstractFinanceView) ContextInjectionFactory.make(clazz, viewContext);
-            viewContext.set(AbstractFinanceView.class, view);
-            view.setContext(viewContext);
-            view.init(this, parameter);
-            view.createViewControl(book);
-
-            book.showPage(view.getControl());
-            view.setFocus();
+            createView((Class<AbstractFinanceView>) clazz, parameter);
         }
-        catch (ClassNotFoundException e)
+        catch (Exception e)
         {
-            throw new RuntimeException(e);
+            PortfolioPlugin.log(e);
+
+            createView(ExceptionView.class, e);
         }
+    }
+
+    private void createView(Class<? extends AbstractFinanceView> clazz, Object parameter)
+    {
+        IEclipseContext viewContext = this.context.createChild();
+        viewContext.set(Client.class, this.client);
+        viewContext.set(IPreferenceStore.class, this.preferenceStore);
+        viewContext.set(PortfolioPart.class, this);
+
+        view = ContextInjectionFactory.make(clazz, viewContext);
+        viewContext.set(AbstractFinanceView.class, view);
+        view.setContext(viewContext);
+        view.init(this, parameter);
+        view.createViewControl(book);
+
+        book.showPage(view.getControl());
+        view.setFocus();
     }
 
     private void disposeView()
@@ -495,12 +518,15 @@ public class PortfolioPart implements LoadClientThread.Callback
     {
         if (!"no".equals(System.getProperty("name.abuchen.portfolio.auto-updates"))) //$NON-NLS-1$ //$NON-NLS-2$
         {
-            regularQuoteUpdateJob = new UpdateQuotesJob(client, false, 1000 * 60 * 10);
-            regularQuoteUpdateJob.schedule(500);
+            new UpdateQuotesJob(client, EnumSet.of(UpdateQuotesJob.Target.LATEST, UpdateQuotesJob.Target.HISTORIC))
+                            .schedule(1000);
 
-            new UpdateQuotesJob(client).schedule(1000);
+            int tenMinutes = 1000 * 60 * 10;
+            regularQuoteUpdateJob = new UpdateQuotesJob(client, EnumSet.of(UpdateQuotesJob.Target.LATEST))
+                            .repeatEvery(tenMinutes);
+            regularQuoteUpdateJob.schedule(tenMinutes);
 
-            new UpdateCPIJob(client).schedule(700);
+            new UpdateCPIJob(client).schedule(1000);
         }
     }
 
@@ -508,14 +534,11 @@ public class PortfolioPart implements LoadClientThread.Callback
     // preference store functions
     // //////////////////////////////////////////////////////////////
 
-    // compatibility: the value used to be stored in the AbstractHistoricView
-    private static final String IDENTIFIER = "AbstractHistoricView"; //$NON-NLS-1$
-
-    public LinkedList<ReportingPeriod> loadReportingPeriods()
+    public LinkedList<ReportingPeriod> loadReportingPeriods() // NOSONAR
     {
-        LinkedList<ReportingPeriod> answer = new LinkedList<ReportingPeriod>();
+        LinkedList<ReportingPeriod> answer = new LinkedList<>();
 
-        String config = getPreferenceStore().getString(IDENTIFIER);
+        String config = getPreferenceStore().getString(REPORTING_PERIODS_KEY);
         if (config != null && config.trim().length() > 0)
         {
             String[] codes = config.split(";"); //$NON-NLS-1$
@@ -541,7 +564,7 @@ public class PortfolioPart implements LoadClientThread.Callback
         return answer;
     }
 
-    public void storeReportingPeriods(LinkedList<ReportingPeriod> periods)
+    public void storeReportingPeriods(List<ReportingPeriod> periods)
     {
         StringBuilder buf = new StringBuilder();
         for (ReportingPeriod p : periods)
@@ -550,7 +573,7 @@ public class PortfolioPart implements LoadClientThread.Callback
             buf.append(';');
         }
 
-        getPreferenceStore().setValue(IDENTIFIER, buf.toString());
+        getPreferenceStore().setValue(REPORTING_PERIODS_KEY, buf.toString());
     }
 
     private void storePreferences()

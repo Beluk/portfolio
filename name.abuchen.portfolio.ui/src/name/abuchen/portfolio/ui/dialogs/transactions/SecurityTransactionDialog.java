@@ -37,7 +37,8 @@ import name.abuchen.portfolio.ui.dialogs.transactions.AbstractSecurityTransactio
 import name.abuchen.portfolio.ui.util.DateTimePicker;
 import name.abuchen.portfolio.ui.util.SimpleDateTimeSelectionProperty;
 
-public class SecurityTransactionDialog extends AbstractTransactionDialog
+@SuppressWarnings("restriction")
+public class SecurityTransactionDialog extends AbstractTransactionDialog // NOSONAR
 {
     @Inject
     private Client client;
@@ -53,7 +54,7 @@ public class SecurityTransactionDialog extends AbstractTransactionDialog
     }
 
     @PostConstruct
-    private void createModel(ExchangeRateProviderFactory factory, PortfolioTransaction.Type type)
+    private void createModel(ExchangeRateProviderFactory factory, PortfolioTransaction.Type type) // NOSONAR
     {
         boolean isBuySell = type == PortfolioTransaction.Type.BUY || type == PortfolioTransaction.Type.SELL;
         AbstractSecurityTransactionModel model = isBuySell ? new BuySellModel(client, type)
@@ -126,7 +127,7 @@ public class SecurityTransactionDialog extends AbstractTransactionDialog
         shares.bindValue(Properties.shares.name(), Messages.ColumnShares, Values.Share, true);
 
         Input quote = new Input(editArea, "x " + Messages.ColumnQuote); //$NON-NLS-1$
-        quote.bindBigDecimal(Properties.quote.name(), Values.Quote.pattern(), Messages.ColumnQuote);
+        quote.bindBigDecimal(Properties.quote.name(), Values.Quote.pattern());
         quote.bindCurrency(Properties.securityCurrencyCode.name());
 
         Input grossValue = new Input(editArea, "="); //$NON-NLS-1$
@@ -136,7 +137,7 @@ public class SecurityTransactionDialog extends AbstractTransactionDialog
         Input exchangeRate = new Input(editArea, useIndirectQuotation ? "/ " : "x "); //$NON-NLS-1$ //$NON-NLS-2$
         exchangeRate.bindBigDecimal(
                         useIndirectQuotation ? Properties.inverseExchangeRate.name() : Properties.exchangeRate.name(),
-                        Values.ExchangeRate.pattern(), Messages.ColumnExchangeRate);
+                        Values.ExchangeRate.pattern());
         exchangeRate.bindCurrency(useIndirectQuotation ? Properties.inverseExchangeRateCurrencies.name()
                         : Properties.exchangeRateCurrencies.name());
 
@@ -233,7 +234,7 @@ public class SecurityTransactionDialog extends AbstractTransactionDialog
         // hide / show exchange rate if necessary
         //
 
-        model.addPropertyChangeListener(Properties.exchangeRateCurrencies.name(), event -> {
+        model.addPropertyChangeListener(Properties.exchangeRateCurrencies.name(), event -> { // NOSONAR
             String securityCurrency = model().getSecurityCurrencyCode();
             String accountCurrency = model().getTransactionCurrencyCode();
 
@@ -251,6 +252,13 @@ public class SecurityTransactionDialog extends AbstractTransactionDialog
             forexTaxes.setVisible(visible);
             plusForexTaxes.setVisible(visible);
             taxes.label.setVisible(!visible);
+
+            // set fx taxes and tx fees to 0 if not visible
+            if (!visible)
+            {
+                model().setForexFees(0);
+                model().setForexTaxes(0);
+            }
         });
 
         WarningMessages warnings = new WarningMessages(this);

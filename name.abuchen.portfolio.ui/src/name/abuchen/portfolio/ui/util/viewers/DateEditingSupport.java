@@ -1,31 +1,29 @@
 package name.abuchen.portfolio.ui.util.viewers;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-
-import name.abuchen.portfolio.ui.Messages;
+import java.time.format.FormatStyle;
 
 import org.eclipse.jface.viewers.CellEditor;
 import org.eclipse.jface.viewers.TextCellEditor;
-import org.eclipse.swt.events.VerifyEvent;
-import org.eclipse.swt.events.VerifyListener;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Text;
 
 import com.ibm.icu.text.MessageFormat;
 
+import name.abuchen.portfolio.money.Values;
+import name.abuchen.portfolio.ui.Messages;
+
 public class DateEditingSupport extends PropertyEditingSupport
 {
-    public static class DateCharacterVerifyListener implements VerifyListener
-    {
-        private String allowedChars = "-0123456789"; //$NON-NLS-1$
-
-        public void verifyText(VerifyEvent e)
-        {
-            for (int ii = 0; e.doit && ii < e.text.length(); ii++)
-                e.doit = allowedChars.indexOf(e.text.charAt(0)) >= 0;
-        }
-    }
+    private static final DateTimeFormatter[] formatters = new DateTimeFormatter[] {
+                    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM),
+                    DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT), //
+                    DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG), //
+                    DateTimeFormatter.ofPattern("d.M.yyyy"), //$NON-NLS-1$
+                    DateTimeFormatter.ofPattern("d.M.yy"), //$NON-NLS-1$
+                    DateTimeFormatter.ISO_DATE };
 
     public DateEditingSupport(Class<?> subjectType, String attributeName)
     {
@@ -39,15 +37,15 @@ public class DateEditingSupport extends PropertyEditingSupport
     public CellEditor createEditor(Composite composite)
     {
         TextCellEditor textEditor = new TextCellEditor(composite);
-        ((Text) textEditor.getControl()).setTextLimit(10);
-        ((Text) textEditor.getControl()).addVerifyListener(new DateCharacterVerifyListener());
+        ((Text) textEditor.getControl()).setTextLimit(20);
         return textEditor;
     }
 
     @Override
     public final Object getValue(Object element) throws Exception
     {
-        return ((LocalDate) descriptor().getReadMethod().invoke(adapt(element))).toString();
+        LocalDate date = (LocalDate) descriptor().getReadMethod().invoke(adapt(element));
+        return Values.Date.format(date);
     }
 
     @Override
@@ -56,14 +54,21 @@ public class DateEditingSupport extends PropertyEditingSupport
         Object subject = adapt(element);
         LocalDate newValue = null;
 
-        try
+        for (DateTimeFormatter formatter : formatters)
         {
-            newValue = LocalDate.parse(String.valueOf(value));
+            try
+            {
+                newValue = LocalDate.parse(String.valueOf(value), formatter);
+                break;
+            }
+            catch (DateTimeParseException ignore)
+            {
+                // continue with next formatter
+            }
         }
-        catch (DateTimeParseException e)
-        {
-            throw new IllegalArgumentException(MessageFormat.format(Messages.MsgErrorNotAValidDate, value), e);
-        }
+
+        if (newValue == null)
+            throw new IllegalArgumentException(MessageFormat.format(Messages.MsgErrorNotAValidDate, value));
 
         LocalDate oldValue = (LocalDate) descriptor().getReadMethod().invoke(subject);
 

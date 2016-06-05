@@ -128,12 +128,14 @@ public class Messages extends NLS
     public static String MsgDeltaWithoutAssets;
     public static String MsgErrorDecrypting;
     public static String MsgErrorDuplicateISIN;
+    public static String MsgErrorDuplicateName;
     public static String MsgErrorDuplicateTicker;
     public static String MsgErrorDuplicateWKN;
     public static String MsgErrorEncrypting;
     public static String MsgErrorIllegalForexUnit;
     public static String MsgErrorMissingValueMatches;
     public static String MsgErrorNotAllPatternMatched;
+    public static String MsgErrorNotAValidDate;
     public static String MsgErrorsConvertingValue;
     public static String MsgErrorUnitCurrencyMismatch;
     public static String MsgFileNotFound;
@@ -145,6 +147,7 @@ public class Messages extends NLS
     public static String MsgMoreResultsAvailable;
     public static String MsgNoExchangeRateAvailableForConversion;
     public static String MsgNoExchangeRateTimeSeriesFound;
+    public static String MsgNoQuotesFoundInHTML;
     public static String MsgNoResults;
     public static String MsgNotANumber;
     public static String MsgNotAPortflioFile;

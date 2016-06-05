@@ -100,7 +100,9 @@ public class DeutscheBankPDFExtractorTest
         assertThat(transaction.getType(), is(AccountTransaction.Type.DIVIDENDS));
         assertThat(transaction.getSecurity(), is(security));
         assertThat(transaction.getDate(), is(LocalDate.parse("2014-12-15")));
-        assertThat(transaction.getMonetaryAmount(), is(Money.of(CurrencyUnit.EUR, 1495L)));
+        assertThat(transaction.getMonetaryAmount(), is(Money.of(CurrencyUnit.EUR, 14_95L)));
+        assertThat(transaction.getUnitSum(Unit.Type.TAX), is(Money.of(CurrencyUnit.EUR, 4_52)));
+        assertThat(transaction.getGrossValue(), is(Money.of(CurrencyUnit.EUR, 19_47)));
         assertThat(transaction.getShares(), is(Values.Share.factorize(123)));
     }
 
@@ -131,6 +133,42 @@ public class DeutscheBankPDFExtractorTest
         AccountTransaction transaction = (AccountTransaction) results.get(0).getSubject();
         assertThat(transaction.getType(), is(AccountTransaction.Type.DIVIDENDS));
         assertThat(transaction.getSecurity(), is(security));
+    }
+    
+    @Test
+    public void testDividendengutschriftWhenSecurityExists() throws IOException
+    {
+        Client client = new Client();
+        Security security = new Security("CISCO", "US17275R1023", null, null);
+        client.addSecurity(security);
+
+        DeutscheBankPDFExctractor extractor = new DeutscheBankPDFExctractor(client)
+        {
+            @Override
+            String strip(File file) throws IOException
+            {
+                return from("DeutscheBankDividendengutschrift.txt");
+            }
+        };
+        List<Exception> errors = new ArrayList<Exception>();
+
+        List<Item> results = extractor.extract(Arrays.asList(new File("t")), errors);
+
+        assertThat(errors, empty());
+        assertThat(results.size(), is(1));
+        new AssertImportActions().check(results, CurrencyUnit.EUR);
+
+        // check transaction
+        AccountTransaction transaction = (AccountTransaction) results.get(0).getSubject();
+        assertThat(transaction.getType(), is(AccountTransaction.Type.DIVIDENDS));
+        assertThat(transaction.getSecurity(), is(security));
+        assertThat(transaction.getType(), is(AccountTransaction.Type.DIVIDENDS));
+        assertThat(transaction.getSecurity(), is(security));
+        assertThat(transaction.getDate(), is(LocalDate.parse("2014-12-15")));
+        assertThat(transaction.getMonetaryAmount(), is(Money.of(CurrencyUnit.EUR, 64_88L)));
+        assertThat(transaction.getUnitSum(Unit.Type.TAX), is(Money.of(CurrencyUnit.EUR, 8_71 + 47 + 13_07)));
+        assertThat(transaction.getGrossValue(), is(Money.of(CurrencyUnit.EUR, 87_13)));
+        assertThat(transaction.getShares(), is(Values.Share.factorize(380)));
     }
 
     @Test

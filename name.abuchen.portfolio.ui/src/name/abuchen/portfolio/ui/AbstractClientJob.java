@@ -1,8 +1,8 @@
 package name.abuchen.portfolio.ui;
 
-import name.abuchen.portfolio.model.Client;
-
 import org.eclipse.core.runtime.jobs.Job;
+
+import name.abuchen.portfolio.model.Client;
 
 public abstract class AbstractClientJob extends Job
 {
